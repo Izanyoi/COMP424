@@ -17,6 +17,7 @@ class StudentAgent(Agent):
   def __init__(self):
     super(StudentAgent, self).__init__()
     self.name = "StudentAgent"
+    self.max_depth = 3
 
   def step(self, chess_board, player, opponent):
     """
@@ -34,6 +35,15 @@ class StudentAgent(Agent):
 
     Please check the sample implementation in agents/random_agent.py or agents/human_agent.py for more details.
     """
+    # 1. Get valid moves
+    legal_moves = get_valid_moves(chess_board, player)
+
+    if not legal_moves:
+      return None
+
+    # 2. Run Minimax with Alpha-Beta Pruning
+    # alpha = -infinity, beta = +infinity
+    _, best_move = self.minimax(chess_board, self.max_depth, float('-inf'), float('inf'), True, player, opponent)
 
     # Some simple code to help you with timing. Consider checking 
     # time_taken during your search and breaking with the best answer
@@ -45,5 +55,88 @@ class StudentAgent(Agent):
 
     # Dummy return (you should replace this with your actual logic)
     # Returning a random valid move as an example
-    return random_move(chess_board,player)
+    return best_move
 
+  def minimax(self, board, depth, alpha, beta, maximizing_player, color, opponent):
+    """
+    Standard Minimax with Alpha-Beta pruning.
+    """
+    # Base case: Depth 0
+    if depth == 0:
+      return self.evaluate_board_fast(board, color, opponent), None
+
+    current_player = color if maximizing_player else opponent
+    valid_moves = get_valid_moves(board, current_player)
+
+    # Base case: No moves (Game End or Pass Turn)
+    if not valid_moves:
+      return self.evaluate_board_fast(board, color, opponent), None
+
+    best_move = None
+
+    if maximizing_player:
+      max_eval = float('-inf')
+      for move in valid_moves:
+        # 1. Fast Copy (Numpy specific)
+        sim_board = board.copy()
+
+        # 2. Execute Move
+        execute_move(sim_board, move, color)
+
+        # 3. Recurse
+        eval_score, _ = self.minimax(sim_board, depth - 1, alpha, beta, False, color, opponent)
+
+        if eval_score > max_eval:
+          max_eval = eval_score
+          best_move = move
+
+        # 4. Prune
+        alpha = max(alpha, eval_score)
+        if beta <= alpha:
+          break
+      return max_eval, best_move
+
+    else:
+      min_eval = float('inf')
+      for move in valid_moves:
+        sim_board = board.copy()
+        execute_move(sim_board, move, opponent)
+
+        eval_score, _ = self.minimax(sim_board, depth - 1, alpha, beta, True, color, opponent)
+
+        if eval_score < min_eval:
+          min_eval = eval_score
+          best_move = move
+
+        beta = min(beta, eval_score)
+        if beta <= alpha:
+          break
+      return min_eval, best_move
+
+  def evaluate_board_fast(self, board, color, opponent):
+    """
+    A purely vectorized evaluation function.
+    NO loops, NO move generation. purely numpy math.
+    """
+    # --- 1. Material Count ---
+    # This is extremely fast in Numpy
+    my_discs = np.sum(board == color)
+    opp_discs = np.sum(board == opponent)
+
+    # --- 2. Corner Control ---
+    # Check corners manually
+    n = board.shape[0] - 1
+    corners = [(0, 0), (0, n), (n, 0), (n, n)]
+    corner_score = 0
+    for r, c in corners:
+      if board[r, c] == color:
+        corner_score += 5
+      elif board[r, c] == opponent:
+        corner_score -= 5
+
+    # --- 3. Strategy Weights ---
+    # Simple Logic: If I am winning significantly, play safe.
+    # If I am losing, play aggressive.
+    material_score = my_discs - opp_discs
+
+    return material_score + corner_score
