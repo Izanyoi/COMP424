@@ -116,7 +116,7 @@ class MctsAgent(Agent):
         sim_board = board.copy()
         player = current_player
         moves_count = 0
-        max_moves = 30  #sim next 30 moves
+        max_moves = 10
 
         while moves_count < max_moves:
             moves = get_valid_moves(sim_board, player)
